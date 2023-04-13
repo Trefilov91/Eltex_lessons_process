@@ -7,9 +7,11 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 
-#define EXE_BIN "./make6_process"
 #define FILE_NAME "./new_file"
 #define MSG_END_SIMBOL '*'
+
+void get_proc_bin_name(char *bin_name);
+void get_proc_bin_path(char *bin_path, char *bin_name);
 
 int main()
 {
@@ -18,9 +20,14 @@ int main()
     char pid_str[20] = {0};
     char *file_pid_str;
     char *file_ppid_str;
+    char bin_name[50];
+    char bin_path[512];
     size_t bytes_counter;
     int status[2];
     char in;
+
+    get_proc_bin_name(bin_name);
+    get_proc_bin_path(bin_path, bin_name);
 
     fd = open(FILE_NAME, O_CREAT | O_RDWR | O_EXCL, S_IRWXO | S_IRWXU | S_IRWXG);
     if(fd < 0) {
@@ -43,14 +50,14 @@ int main()
         if(ppid == atol(file_ppid_str)) {
             child_pid[0] = fork();
             if(child_pid[0] == 0) {
-                execl(EXE_BIN, EXE_BIN, NULL);
+                execl(bin_path, bin_name, NULL);
                 exit(EXIT_SUCCESS);
             }
             else {
                 if(pid == atol(file_pid_str)) {
                     child_pid[1] = fork();
                     if(child_pid[0] == 0) {
-                        execl(EXE_BIN, EXE_BIN, NULL);
+                        execl(bin_path, bin_name, NULL);
                         exit(EXIT_SUCCESS);
                     }              
                 }
@@ -81,7 +88,7 @@ int main()
 
         child_pid[0] = fork();
         if(child_pid[0] == 0) {
-            execl(EXE_BIN, EXE_BIN, NULL);
+            execl(bin_path, bin_name, NULL);
             exit(EXIT_SUCCESS);
         }
         else {
@@ -94,7 +101,7 @@ int main()
 
             child_pid[1] = fork();
             if(child_pid[1] == 0) {
-                execl(EXE_BIN, EXE_BIN, NULL);
+                execl(bin_path, bin_name, NULL);
                 exit(EXIT_SUCCESS);
             }
             else{
@@ -119,4 +126,38 @@ int main()
     remove(FILE_NAME);
     exit(EXIT_SUCCESS);
     return 0;
+}
+
+void get_proc_bin_name(char *bin_name)
+{
+    pid_t pid = getpid();
+    char proc_path[100];
+    char buf[512];
+    char *token = NULL;
+    int fd, readed_bytes;
+
+    sprintf(proc_path, "/proc/%ld/stat", (long)pid);
+    fd = open(proc_path, O_RDONLY, S_IRWXO | S_IRWXU | S_IRWXG);
+    if(fd < 0) {
+        printf("can not open file %s\n", proc_path);
+        close(fd);
+        return;
+    }
+    readed_bytes = read(fd, buf, sizeof(buf));
+    if(readed_bytes < 0) {
+        printf("can not read file %s\n", proc_path);
+        close(fd);
+        return;
+    }
+
+    token = strtok(buf, " ()");
+    token = strtok(NULL, " ()");
+    strcpy(bin_name, token);
+}
+
+void get_proc_bin_path(char *bin_path, char *bin_name)
+{
+    char dir_path[500];
+    getcwd(dir_path, sizeof(dir_path));
+    sprintf(bin_path, "%s/%s", dir_path, bin_name);
 }
